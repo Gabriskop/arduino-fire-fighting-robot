@@ -1,0 +1,30 @@
+#include <Servo.h>
+
+const int gasSensorPinAnalog = A1;
+const int threshold = 500;  // Prahová hodnota pro detekci plynu
+const int servoPin = 9;
+
+Servo myServo;
+
+void setup() {
+  Serial.begin(9600);
+  myServo.attach(servoPin);  // Připojení serva na pin 9
+  myServo.write(0);          // Výchozí pozice serva (0°)
+}
+
+void loop() {
+  int gasAnalog = analogRead(gasSensorPinAnalog);
+
+  Serial.print("Analogova hodnota: ");
+  Serial.println(gasAnalog);
+
+  if (gasAnalog > threshold) {
+    Serial.println("Plyn detekovan! Servo se pohybuje.");
+    myServo.write(90);  // Servo se otočí o 90°
+  } else {
+    Serial.println("Zadne nebezpecne plyny.");
+    myServo.write(0);   // Servo se vrátí do výchozí pozice (0°)
+  }
+
+  delay(1000); // Pauza mezi měřeními
+}
