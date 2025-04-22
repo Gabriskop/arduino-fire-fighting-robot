@@ -1,0 +1,16 @@
+const int RELAY_PIN = 11; // pin, na kterém je relé
+
+void setup() {
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH); // relé vypnuto (rozpojeno)
+}
+
+void loop() {
+  // Zapnutí pumpy na 2 sekundy
+  digitalWrite(RELAY_PIN, LOW); // relé sepnuto → pumpa běží
+  delay(2000);
+
+  // Vypnutí pumpy na 3 sekundy
+  digitalWrite(RELAY_PIN, HIGH); // relé vypnuto → pumpa zastavena
+  delay(3000);
+}
