@@ -1,0 +1,102 @@
+#include <Servo.h>
+
+// Motor driver piny
+const int in1 = 2;
+const int in2 = 4;
+const int enA = 3;
+const int in3 = 5;
+const int in4 = 7;
+const int enB = 6;
+
+// Servo
+Servo myServo;
+const int SERVO_PIN = 8;
+
+// Infračervené senzory
+const int SENSOR_LEFT   = A5;
+const int SENSOR_RIGHT  = A3;
+const int SENSOR_MIDDLE = A7;
+
+// Prahové hodnoty
+const int THRESHOLD_SIDE   = 240;
+const int THRESHOLD_MIDDLE = 100;
+
+// Relé pro pumpu (aktivní LOW)
+const int RELAY_PIN = 11;
+
+bool hasMoved = false;
+
+void setup() {
+  // Inicializace motorů
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(enA,  OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+  pinMode(enB,  OUTPUT);
+
+  // Servo
+  myServo.attach(SERVO_PIN);
+  myServo.write(90);
+
+  // Relé
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH);   // relé rozpojeno → pumpa vypnutá
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  int left   = analogRead(SENSOR_LEFT);
+  int right  = analogRead(SENSOR_RIGHT);
+  int middle = analogRead(SENSOR_MIDDLE);
+
+  Serial.print("L:"); Serial.print(left);
+  Serial.print(" R:"); Serial.print(right);
+  Serial.print(" M:"); Serial.println(middle);
+
+  // Detekce „ohně“ podle senzorů
+  if ((left < THRESHOLD_SIDE || right < THRESHOLD_SIDE || middle < THRESHOLD_MIDDLE) && !hasMoved) {
+    driveForward();          // jedeme rovně
+    delay(200);              // cca 10 cm
+    stopMotors();            // zastavíme
+    hasMoved = true;
+
+    // Natočení serva na směr „ohně“
+    if (left < THRESHOLD_SIDE)      myServo.write(140);
+    else if (right < THRESHOLD_SIDE) myServo.write(40);
+    else                             myServo.write(90);
+
+    delay(500);  // počkáme než se servo ustálí
+
+    // Spustíme pumpu na 2 s
+    digitalWrite(RELAY_PIN, LOW);   // relé sepne → pumpa jede
+    delay(2000);
+    digitalWrite(RELAY_PIN, HIGH);  // relé rozepne → pumpa vypne
+  }
+
+  // Reset, až „oheň“ zmizí
+  if (left >= THRESHOLD_SIDE && right >= THRESHOLD_SIDE && middle >= THRESHOLD_MIDDLE) {
+    hasMoved = false;
+  }
+
+  delay(100);
+}
+
+void driveForward() {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, HIGH);
+  analogWrite(enA, 200);
+  analogWrite(enB, 200);
+}
+
+void stopMotors() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+  analogWrite(enA, 0);
+  analogWrite(enB, 0);
+}
