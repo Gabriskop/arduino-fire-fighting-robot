@@ -1,0 +1,51 @@
+#include <Servo.h>
+
+#define leftAnalogPin A1
+#define rightAnalogPin A2
+#define servoPin 9
+
+Servo myServo;
+
+const int threshold = 300; // Prahová hodnota pro detekci zakrytí senzoru
+
+void setup() {
+  Serial.begin(9600);
+
+  // Inicializace vstupů
+  pinMode(leftAnalogPin, INPUT);
+  pinMode(rightAnalogPin, INPUT);
+
+  // Inicializace serva
+  myServo.attach(servoPin);
+  myServo.write(90); // Servo začíná ve středu (90°)
+  Serial.println("Inicializace dokončena.");
+}
+
+void loop() {
+  int leftLight = analogRead(leftAnalogPin);
+  int rightLight = analogRead(rightAnalogPin);
+
+  // Výpis hodnot světelných senzorů
+  Serial.print("Levy senzor svetla: ");
+  Serial.println(leftLight);
+  Serial.print("Pravy senzor svetla: ");
+  Serial.println(rightLight);
+
+  // Kontrola zakrytí levého senzoru
+  if (leftLight < threshold) {
+    Serial.println("Zakryty levy senzor!");
+    myServo.write(45);  // Otočení doleva
+  } 
+  // Kontrola zakrytí pravého senzoru
+  else if (rightLight < threshold) {
+    Serial.println("Zakryty pravy senzor!");
+    myServo.write(135); // Otočení doprava
+  } 
+  // Když nejsou senzory zakryté
+  else {
+    Serial.println("Senzory nejsou zakryte.");
+    myServo.write(90); // Servo se vrátí do středu
+  }
+
+  delay(500); // Pauza mezi měřeními
+}
