@@ -1,0 +1,213 @@
+#include <Servo.h>
+
+#define BTserial Serial1  // Definujeme Bluetooth serial jako Serial1
+
+// Motor driver piny
+const int in1 = 2;
+const int in2 = 4;
+const int enA = 3;
+const int in3 = 5;
+const int in4 = 7;
+const int enB = 6;
+
+// Servo
+Servo myServo;
+const int SERVO_PIN = 9; // Ujisti se, že odpovídá zapojení
+
+// Infračervené senzory
+const int SENSOR_LEFT = A5;
+const int SENSOR_RIGHT = A3;
+const int SENSOR_MIDDLE = A7;
+
+// Prahové hodnoty pro detekci plamene
+const int THRESHOLD_SIDE = 240;
+const int THRESHOLD_MIDDLE = 100;
+
+// Relé pro pumpu (aktivní LOW)
+const int RELAY_PIN = 11;
+
+// Doba, po kterou má auto jet dopředu při Bluetooth ovládání
+const long FORWARD_DURATION = 1000;
+
+// Proměnná pro stav autonomního režimu
+bool autonomousMode = true; // Autonomní režim je ve výchozím stavu zapnutý
+
+// Proměnná, aby se akce po detekci plamene spustila jen jednou
+bool hasDetectedFlame = false;
+
+int servoValue = 90; // Proměnná pro ukládání pozice serva
+
+// Funkce pro mapování hodnot z jednoho rozsahu do druhého
+int mapValue(int x, int in_min, int in_max, int out_min, int out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void setup() {
+  Serial.begin(9600);
+  BTserial.begin(9600);
+  myServo.attach(SERVO_PIN);
+  myServo.write(servoValue);
+  Serial.println("Setup hotov");
+
+  // Nastavení pinů pro motory jako výstupy
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(enA, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+  pinMode(enB, OUTPUT);
+  stopMotors();
+
+  // Nastavení pinu pro relé pumpy jako výstup
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH); // Pumpa ve výchozím stavu vypnutá
+}
+
+void loop() {
+  if (BTserial.available()) {
+    char incomingByte = BTserial.read(); // Čteme jako char, ne int
+    Serial.print("Přijatý byte (ASCII): ");
+    Serial.println(incomingByte);
+
+    if (incomingByte == 'L') {
+      turnLeft(); // Voláme funkci pro zatáčení doleva
+      Serial.println("Zatáčam doľava");
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'R') {
+      turnRight(); // Voláme funkci pro zatáčení doprava
+      Serial.println("Zatáčam doprava");
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'C') {
+      stopMotors();
+      Serial.println("Zastaveno");
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'F') {
+      driveForward();
+      delay(FORWARD_DURATION);
+      stopMotors();
+      Serial.println("Jedu dopředu");
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'B') {
+      driveBackward();
+      delay(FORWARD_DURATION);
+      stopMotors();
+      Serial.println("Jedu dozadu");
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'P') {
+      Serial.println("Zapínám pumpu");
+      digitalWrite(RELAY_PIN, LOW);
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'Q') {
+      Serial.println("Vypínám pumpu");
+      digitalWrite(RELAY_PIN, HIGH);
+      autonomousMode = false;
+      hasDetectedFlame = false;
+    } else if (incomingByte == 'A') {
+      autonomousMode = true;
+      Serial.println("Autonomní režim zapnut");
+      hasDetectedFlame = false;
+    } else if (incomingByte >= '0' && incomingByte <= '9') {
+      // Příkaz pro nastavení serva (hodnota 0-9 z aplikace)
+      int potValue = (incomingByte - '0') * 25; // Rozsah 0-225 (pro jistotu nechávám rezervu)
+      servoValue = mapValue(potValue, 0, 225, 0, 180); // Mapování na 0-180
+      myServo.write(servoValue);
+      Serial.print("Nastavujem servo na: ");
+      Serial.println(servoValue);
+    } else {
+      Serial.println("Neznámý příkaz");
+    }
+  }
+
+  Serial.print("Stav autonomního režimu: ");
+  Serial.println(autonomousMode);
+
+  if (autonomousMode) {
+    // Autonomní detekce plamene a natočení serva
+    int left = analogRead(SENSOR_LEFT);
+    int right = analogRead(SENSOR_RIGHT);
+    int middle = analogRead(SENSOR_MIDDLE);
+
+    Serial.print("L:");
+    Serial.print(left);
+    Serial.print(" R:");
+    Serial.print(right);
+    Serial.print(" M:");
+    Serial.println(middle);
+
+    if ((left < THRESHOLD_SIDE || right < THRESHOLD_SIDE || middle < THRESHOLD_MIDDLE) && !hasDetectedFlame) {
+      driveForward();
+      delay(200);
+      stopMotors();
+      hasDetectedFlame = true;
+
+      if (left < THRESHOLD_SIDE)
+        myServo.write(140);
+      else if (right < THRESHOLD_SIDE)
+        myServo.write(40);
+      else
+        myServo.write(90);
+
+      delay(500);
+    }
+
+    // Reset detekce plamene, když plamen zmizí
+    if (left >= THRESHOLD_SIDE && right >= THRESHOLD_SIDE && middle >= THRESHOLD_MIDDLE) {
+      hasDetectedFlame = false;
+    }
+  }
+
+  delay(10);
+}
+
+// Funkce pro pohyb a zastavení motorů
+void driveForward() {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 200);
+  digitalWrite(in3, HIGH);
+  digitalWrite(in4, LOW);
+  analogWrite(enB, 200);
+}
+
+void driveBackward() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  analogWrite(enA, 200);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, HIGH);
+  analogWrite(enB, 200);
+}
+
+void turnLeft() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 150);  // Snížený výkon pro zatáčení
+  digitalWrite(in3, HIGH);
+  digitalWrite(in4, LOW);
+  analogWrite(enB, 150);  // Snížený výkon pro zatáčení
+}
+
+void turnRight() {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 150);  // Snížený výkon pro zatáčení
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+  analogWrite(enB, 150);  // Snížený výkon pro zatáčení
+}
+
+
+void stopMotors() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 0);
+  digitalWrite(in3, LOW);
+  digitalWrite(in4, LOW);
+  analogWrite(enB, 0);
+}
